@@ -1,4 +1,4 @@
-(ql:quickload (list "alexandria" "drakma" "s-xml"))
+(ql:quickload (list "alexandria" "drakma" "s-xml" "archive" "gzip-stream" "trivial-gray-streams" "cl-ppcre" "flexi-streams"))
 
 (defparameter *arxiv-prefix* "math.AT")
 
