@@ -71,8 +71,13 @@
             (error (c)
               (format t "== Caught error: ~a ==~%" c)
               (format t "== PROCESSING AS RAW TEX ==~%")
-              (with-input-from-string (s (flexi-streams:octets-to-string unzipped-sequence))
-                (process-tex s)))))
+              (cond
+                ((every (lambda (x) (< x 128)) unzipped-sequence)
+                 (with-input-from-string
+                     (s (flexi-streams:octets-to-string unzipped-sequence))
+                   (process-tex s)))
+                (t
+                 (error "Found a high octet. Probably not plain-text."))))))
       (error (c)
         (format t "== Caught error: ~a ==~%" c)
         (format t "== UNKNOWN FILE FORMAT ==~%")))))
