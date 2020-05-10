@@ -1,4 +1,4 @@
-(ql:quickload (list "alexandria" "drakma" "s-xml" "archive" "gzip-stream" "trivial-gray-streams" "cl-ppcre" "flexi-streams"))
+(ql:quickload (list "alexandria" "drakma" "xmls" "archive" "gzip-stream" "trivial-gray-streams" "cl-ppcre" "flexi-streams"))
 
 (defparameter *arxiv-prefix* "math.AT")
 
@@ -35,16 +35,20 @@
 (defun ID->metadata-URL (id)
   (format nil "http://export.arxiv.org/api/query?id_list=~a" id))
 
+(defun xml-find (xml name)
+  (find name (xmls:node-children xml) :key #'xmls:node-name :test #'string=))
+
 (defun ID->metadata (id)
   (let* ((url (ID->metadata-URL id))
          (raw-octets (drakma:http-request url))
          (raw-string (flexi-streams:octets-to-string raw-octets))
-         (xml (s-xml:parse-xml-string raw-string))
-         (response (rest (assoc 'NS-2:|entry| xml))))
-    (values (second (assoc 'NS-2:|title| response))
-            (loop :for (sigil . body) :in response
-                  :when (eql sigil 'NS-2:|author|)
-                    :collect (second (first body))))))
+         (xml (xmls:parse raw-string))
+         (payload (xml-find xml "entry")))
+    ;; (VALUES TITLE AUTHORS)
+    (values (first (xmls:node-children (xml-find payload "title")))
+            (loop :for child :in (xmls:node-children payload)
+                  :when (string= "author" (xmls:node-name child))
+                    :collect (first (xmls:node-children (first (xmls:node-children child))))))))
 
 (defun print-metadata (id)
   (multiple-value-bind (title authors) (ID->metadata id)
@@ -82,17 +86,19 @@
         (format t "== Caught error: ~a ==~%" c)
         (format t "== UNKNOWN FILE FORMAT ==~%")))))
 
-(defun popular-IDs (count)
-  (let* ((url (format nil "http://export.arxiv.org/api/query?search_query=cat:~a&start=0&max_results=~a"
-                      *arxiv-prefix* count))
+(defun popular-IDs (count &key (start 0))
+  (let* ((url (format nil "http://export.arxiv.org/api/query?search_query=cat:~a&start=~a&max_results=~a"
+                      *arxiv-prefix* start count))
          (raw-octets (drakma:http-request url))
          (raw-string (flexi-streams:octets-to-string raw-octets))
-         (xml (nthcdr 8 (s-xml:parse-xml-string raw-string))))
-    (loop :for blob :in xml
-          :collect (abs-url->id (second (assoc 'NS-2:|id| (rest blob)))))))
+         (xml (xmls:parse raw-string)))
+    (loop :for item :in (nthcdr 7 (xmls:node-children xml))
+          :for children := (xmls:node-children item)
+          :for subitem := (find "id" children :key #'xmls:node-name :test #'string=)
+          :collect (abs-url->id (first (xmls:node-children subitem))))))
 
-(defun scrape-popular (count &key (sleep-delay 10))
-  (dolist (id (popular-IDs count))
+(defun scrape-popular (count &key (start 0) (sleep-delay 10))
+  (dolist (id (popular-IDs count :start start))
     (sleep sleep-delay)
     (print-metadata id)
     (process-ID id)
@@ -100,9 +106,10 @@
 
 (defun recent-IDs ()
   (let* ((rss-response (drakma:http-request (rss-url)))
-         (xml (s-xml:parse-xml-string rss-response)))
-    (loop :for item :in (cdadr (assoc 'NS-0:|items| (second xml)))
-          :collect (ABS-URL->ID (third (first item))))))
+         (xml (xmls:parse rss-response)))
+    (loop :for node :in (cddr (xmls:node-children xml))
+          :for (str payload) := (assoc "about" (xmls:node-attrs node) :test #'string=)
+          :collect (ABS-URL->ID payload))))
 
 (defun scrape-recent (&key (sleep-delay 10))
   (dolist (id (recent-IDs))
