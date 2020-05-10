@@ -8,7 +8,8 @@
             :for line := (read-line raw-contents)
             :with ended? := nil
             :unless ended?
-              :do (setf ended? (cl-ppcre:scan "\\\\end\\{document\\}" line))
+              :do (setf ended? (and (cl-ppcre:scan "\\\\end\\{document\\}" line)
+                                    (not (cl-ppcre:scan "\\\\bye" line))))
                   (alexandria:when-let ((comment (cl-ppcre:scan-to-strings "%(.*)" line
                                                                            :sharedp t)))
                     (format t "[~5d] ~a~%" i comment))
