@@ -58,6 +58,21 @@
 (defun rss-url ()
   (format nil "https://arxiv.org/rss/~a" *arxiv-prefix*))
 
+(defun unicodeish-p (byte-array)
+  (flet ((asciip (c) (<= c 126)))
+    (let ((length (length byte-array)))
+      (every (lambda (a b c d e)
+               (some #'asciip (list a b c d e)))
+             byte-array
+             (make-array (- length 1) :element-type '(unsigned-byte 8)
+                                      :displaced-to byte-array :displaced-index-offset 1)
+             (make-array (- length 2) :element-type '(unsigned-byte 8)
+                                      :displaced-to byte-array :displaced-index-offset 2)
+             (make-array (- length 3) :element-type '(unsigned-byte 8)
+                                      :displaced-to byte-array :displaced-index-offset 3)
+             (make-array (- length 4) :element-type '(unsigned-byte 8)
+                                      :displaced-to byte-array :displaced-index-offset 4)))))
+
 (defun process-ID (id)
   (let* ((gzip-link (ID->GZ-URL id))
          (raw-contents (drakma:http-request gzip-link)))
@@ -77,7 +92,7 @@
               (format t "== Caught error: ~a ==~%" c)
               (format t "== PROCESSING AS RAW TEX ==~%")
               (cond
-                ((every (lambda (x) (< x 128)) unzipped-sequence)
+                ((unicodeish-p unzipped-sequence)
                  (with-input-from-string
                      (s (flexi-streams:octets-to-string unzipped-sequence))
                    (process-tex s)))
