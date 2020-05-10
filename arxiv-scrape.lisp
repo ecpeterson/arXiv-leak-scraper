@@ -133,3 +133,10 @@
     (print-metadata id)
     (process-ID id)
     (format t "~%~%~%=========================~%~%~%")))
+
+(defun scrape-list (IDs &key (sleep-delay 10))
+  (dolist (id IDs)
+    (sleep sleep-delay)
+    (print-metadata id)
+    (process-ID id)
+    (format t "~%~%~%=========================~%~%~%")))
